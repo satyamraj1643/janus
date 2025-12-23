@@ -1,0 +1,32 @@
+[
+    {
+        "job_id": "job_101",
+        "tenant_id": "client_A",
+        "dependencies": {
+            "payment_gateway": 1
+        },
+        "payload": {
+            "action": "test_1"
+        }
+    },
+    {
+        "job_id": "job_102",
+        "tenant_id": "client_A",
+        "dependencies": {
+            "payment_gateway": 1
+        },
+        "payload": {
+            "action": "test_2"
+        }
+    },
+    {
+        "job_id": "job_103",
+        "tenant_id": "client_A",
+        "dependencies": {
+            "payment_gateway": 1
+        },
+        "payload": {
+            "action": "test_3"
+        }
+    }
+]

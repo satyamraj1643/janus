@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "global_execution_limit": {
+    "max_jobs": 2,
+    "window_ms": 1000,
+    "max_concurrent_per_tenant": 2,
+    "min_priority": 0
+  },
+  "dependencies": {
+    "payment_gateway": {
+      "type": "external_api",
+      "rate_limit": {
+        "max_requests": 100,
+        "window_ms": 1000
+      },
+      "concurrent": {
+        "max_inflight": 2
+      },
+      "min_interval_ms": 200,
+      "warmup_ms": 300000
+    },
+    "database": {
+      "type": "database",
+      "rate_limit": {
+        "max_requests": 1,
+        "window_ms": 1000
+      },
+      "concurrent": {
+        "max_inflight": 10
+      },
+      "min_interval_ms": 50
+    },
+    "email_service": {
+      "type": "external_api",
+      "rate_limit": {
+        "max_requests": 50,
+        "window_ms": 1000
+      }
+    }
+  },
+  "default_job_policy": {
+    "idempotency_window_ms": 300000,
+    "retry": {
+      "max_attempts": 3,
+      "backoff": "exponential",
+      "initial_delay_ms": 1000
+    },
+    "execution": {
+      "timeout_ms": 15000
+    },
+    "quarantine": {
+      "failure_threshold": 5,
+      "quarantine_duration_ms": 60000,
+      "monitoring_window_ms": 300000
+    }
+  }
+}
