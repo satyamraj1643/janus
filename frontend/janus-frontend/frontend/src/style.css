@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer components {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
+  }
+
+  /* Dark theme override for specific containers if needed, 
+     but for now relying on parent context or specialized classes */
+  .dark-scrollbar::-webkit-scrollbar-thumb {
+      @apply bg-neutral-700;
+  }
+  .dark-scrollbar::-webkit-scrollbar-thumb:hover {
+      @apply bg-neutral-600;
+  }
+}

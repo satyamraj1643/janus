@@ -9,11 +9,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-//go:embed token_bucket.lua
+// -- Embedding Lua Scripts Start --
 
-var tokenBucketScriptContent string
+//go:embed tenant_starvation.lua
+var tenantStarvationScriptContent string
+var tenantStarvationScript = redis.NewScript(tenantStarvationScriptContent)
 
-var tokenBucketScript = redis.NewScript(tokenBucketScriptContent)
+//go:embed atomic_token_bucket.lua
+var atomicTokenBucketScriptContent string
+var atomicTokenBucketScript = redis.NewScript(atomicTokenBucketScriptContent)
+
+//go:embed burst_smoothing.lua
+var burstSmoothingScriptContent string
+var burstSmoothingScript = redis.NewScript(burstSmoothingScriptContent)
 
 type RedisStore struct {
 	client *redis.Client
@@ -32,7 +40,7 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
 
-// Idempotency core logic
+// Standalone Idempotency logic
 
 func (r *RedisStore) CheckAndMarkAdmitted(ctx context.Context, jobID string, window time.Duration) (bool, error) {
 	// Construct a unique key for job's idempotency
@@ -54,7 +62,7 @@ func (r *RedisStore) CheckAndMarkAdmitted(ctx context.Context, jobID string, win
 	return !isNew, nil
 }
 
-// Rate limiting core logic
+// Standalone external API Rate limiting logic
 func (r *RedisStore) AllowRequest(ctx context.Context, key string, limit int, window time.Duration, cost int) (bool, error) {
 	// 1. Create a unique key for rate limit
 
@@ -82,6 +90,8 @@ func (r *RedisStore) AllowRequest(ctx context.Context, key string, limit int, wi
 
 }
 
+// Standalone tenanat-starvation logic
+
 func (r *RedisStore) AllowRequestTokenBucket(ctx context.Context, key string, capacity int, refillRate float64, cost int) (bool, error) {
 	tokensKey := fmt.Sprintf("janus:quota:%s:tokens", key)
 	timestampKey := fmt.Sprintf("janus:quota:%s:ts", key)
@@ -91,7 +101,7 @@ func (r *RedisStore) AllowRequestTokenBucket(ctx context.Context, key string, ca
 	//Keys : [tokensKey, timestampKey]
 	//Args : [capacity, refill_rate, cost, now]
 
-	result, err := tokenBucketScript.Run(ctx, r.client, []string{tokensKey, timestampKey}, capacity, refillRate, cost, now).Result()
+	result, err := tenantStarvationScript.Run(ctx, r.client, []string{tokensKey, timestampKey}, capacity, refillRate, cost, now).Result()
 	if err != nil {
 		return false, err
 	}
@@ -101,6 +111,52 @@ func (r *RedisStore) AllowRequestTokenBucket(ctx context.Context, key string, ca
 	}
 
 	return false, nil
+}
+
+// One single handler for API Rate Limiting, Tenanat Starvation and global execution limit.
+func (r *RedisStore) AllowRequestAtomic(ctx context.Context, reqs []RateLimitReq) (bool, error) {
+	if len(reqs) == 0 {
+		return true, nil
+	}
+
+	keys := make([]string, 0, len(reqs)*2)
+	args := make([]any, 0, 2+(len(reqs)*3))
+
+	now := float64(time.Now().UnixNano()) / 1e9
+	args = append(args, now, len(reqs))
+
+	for _, req := range reqs {
+		keys = append(keys, fmt.Sprintf("janus:quota:%s:tokens", req.Key))
+		keys = append(keys, fmt.Sprintf("janus:quota:%s:ts", req.Key))
+		keys = append(keys, fmt.Sprintf("janus:quota:%s:created", req.Key))
+		args = append(args, req.Capacity, req.RefillRate, req.Cost, req.MinInterval, req.WarmupMs)
+	}
+
+	res, err := atomicTokenBucketScript.Run(ctx, r.client, keys, args...).Result()
+	if err != nil {
+		return false, err
+	}
+
+	return res.(int64) == 1, nil
+}
+
+// AllowBurstSmoothing implements [StateStore].
+func (r *RedisStore) AllowBurstSmoothing(ctx context.Context, key string, minIntervalSeconds float64) (bool, error) {
+	tsKey := fmt.Sprintf("janus:smoothing:%s:ts", key)
+	now := float64(time.Now().UnixNano()) / 1e9
+
+	res, err := burstSmoothingScript.Run(ctx, r.client, []string{tsKey}, now, minIntervalSeconds).Result()
+	if err != nil {
+		return false, err
+	}
+
+	return res.(int64) == 1, nil
+
+}
+
+func (r *RedisStore) ClearIdempotency(ctx context.Context, jobID string) error {
+	key := fmt.Sprintf("janus:idempotency:%s", jobID)
+	return r.client.Del(ctx, key).Err()
 }
 
 func (r *RedisStore) Flush(ctx context.Context) error {

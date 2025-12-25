@@ -1,23 +1,24 @@
 {
   "version": 1,
   "global_execution_limit": {
-    "max_jobs": 2,
+    "max_jobs": 20,
     "window_ms": 1000,
-    "max_concurrent_per_tenant": 2,
-    "min_priority": 0
+    "max_concurrent_per_tenant": 20,
+    "min_priority": 0,
+    "min_interval_ms": 500
   },
   "dependencies": {
     "payment_gateway": {
       "type": "external_api",
       "rate_limit": {
-        "max_requests": 100,
+        "max_requests": 5,
         "window_ms": 1000
       },
       "concurrent": {
         "max_inflight": 2
       },
-      "min_interval_ms": 200,
-      "warmup_ms": 300000
+      "min_interval_ms": 0,
+      "warmup_ms": 5000
     },
     "database": {
       "type": "database",

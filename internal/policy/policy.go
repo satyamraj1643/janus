@@ -18,6 +18,7 @@ type GlobalExecutionLimit struct {
 	WindowMs               int `json:"window_ms"`
 	MaxConcurrentPerTenant int `json:"max_concurrent_per_tenant"` // : Prevent "Noisy Neighbor"
 	MinPriority            int `json:"min_priority"`              // : Emergency "Kill Switch" gate
+	MinIntervalMs          int `json:"min_interval_ms"`           // : Burst Smoothing
 }
 
 type DependencyPolicy struct {

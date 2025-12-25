@@ -2,6 +2,7 @@
     {
         "job_id": "job_101",
         "tenant_id": "client_A",
+        "priority": 1,
         "dependencies": {
             "payment_gateway": 1
         },
@@ -12,6 +13,7 @@
     {
         "job_id": "job_102",
         "tenant_id": "client_A",
+        "priority": 2,
         "dependencies": {
             "payment_gateway": 1
         },
@@ -22,6 +24,7 @@
     {
         "job_id": "job_103",
         "tenant_id": "client_A",
+        "priority": 3,
         "dependencies": {
             "payment_gateway": 1
         },

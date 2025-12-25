@@ -7,6 +7,7 @@ package spec
 type Job struct {
 	ID           string                 `json:"job_id"`
 	TenantID     string                 `json:"tenant_id"`
+	Priority     int                    `json:"priority"`
 	Dependencies map[string]int         `json:"dependencies"`
-	Payload      map[string]interface{} `json:"payload"`
+	Payload      map[string]any `json:"payload"`
 }
