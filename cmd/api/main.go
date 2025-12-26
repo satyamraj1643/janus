@@ -23,7 +23,8 @@ func main() {
 	db.Init()
 	defer db.Pool.Close()
 
-	worker.Start(0) // 2 worker threads only for dequeing from the queue.
+	worker.StartJanusService(2) // 2 worker threads only for dequeing from the queue. (async with Janus Singleton thread)
+	worker.StartDBWriter(2)     // 2 worker thread to save the processed job into DB (async with Janus singleton thread)
 
 	//Router
 	mux := http.NewServeMux()
@@ -31,25 +32,43 @@ func main() {
 	// Route + middleware
 
 	mux.Handle(
-		"POST /jobs/batch",
+		"POST dashboard/jobs",
 		middleware.ServiceRunningOnly(
-			http.HandlerFunc(handler.CreateJobBatch), // partial
+			http.HandlerFunc(handler.CreateJobFromDashboard),
+		),
+	)
+	mux.Handle(
+		"POST dashboard/jobs/batch",
+		middleware.ServiceRunningOnly(
+			http.HandlerFunc(handler.CreateJobBatchFromDashboard), // partial
 		),
 	)
 
-
 	mux.Handle(
-		"POST /jobs",
+		"POST dashboard/jobs/batch/atomic",
 		middleware.ServiceRunningOnly(
-			http.HandlerFunc(handler.CreateJob),
+			http.HandlerFunc(handler.CreateJobBatchAtomicFromDashboard), // atomic
 		),
 	)
 
-	
 	mux.Handle(
-		"POST /jobs/batch/atomic",
+		"POST system/jobs",
 		middleware.ServiceRunningOnly(
-			http.HandlerFunc(handler.CreateJobBatchAtomic), // atomic
+			http.HandlerFunc(handler.CreateJobFromSystem),
+		),
+	)
+
+	mux.Handle(
+		"POST system/jobs/batch",
+		middleware.ServiceRunningOnly(
+			http.HandlerFunc(handler.CreateJobBatchFromSystem), // partial
+		),
+	)
+
+	mux.Handle(
+		"POST system/jobs/batch/atomic",
+		middleware.ServiceRunningOnly(
+			http.HandlerFunc(handler.CreateJobBatchAtomicFromSystem), // atomic
 		),
 	)
 

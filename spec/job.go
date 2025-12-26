@@ -10,4 +10,18 @@ type Job struct {
 	Priority     int                    `json:"priority"`
 	Dependencies map[string]int         `json:"dependencies"`
 	Payload      map[string]any `json:"payload"`
+
+
+	// metadata (NOT user-provided)
+
+	Source JobSource `json:"-"`
+	BatchName string `json:"-"`
+	BatchID string `json:"-"`
 }
+
+type JobSource string
+
+const (
+	JobSourceDashboard JobSource = "dashboard"
+	JobSourceSystem JobSource = "system"
+)

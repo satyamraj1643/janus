@@ -6,13 +6,34 @@ import (
 )
 
 
-func Start(n int) {
+func StartJanusService(n int) {
 	for i:= range n {
 		go func (id int) {
-			log.Println("worker started:", id)
+			log.Printf("Processor %d started:", id)
 			for job := range queue.JobQueue {
 				log.Printf("worker %d processing job %s", id, job.ID)
-				// will implement this later...
+				// Run the janus logic
+
+
+
+				// After processing, send to ResultQueue
+				queue.ResultQueue <- job
+			}
+		}(i)
+	}
+}
+
+
+func StartDBWriter(n int){
+	for i := range n {
+		go func(id int){
+			log.Printf("DBWriter %d started", id)
+
+			for job := range queue.ResultQueue{
+				log.Printf("DBWriter %d: saving %s to DB", id, job.ID)
+
+
+				// Write to DB here
 			}
 		}(i)
 	}
