@@ -14,8 +14,10 @@ func StartJanusService(n int) {
 				log.Printf("worker %d processing job %s", id, job.ID)
 				// Run the janus logic
 
+				log.Println("Processing job", job)
 
-
+				
+            
 				// After processing, send to ResultQueue
 				queue.ResultQueue <- job
 			}
@@ -32,6 +34,7 @@ func StartDBWriter(n int){
 			for job := range queue.ResultQueue{
 				log.Printf("DBWriter %d: saving %s to DB", id, job.ID)
 
+				log.Println("Saving job", job)
 
 				// Write to DB here
 			}

@@ -32,41 +32,41 @@ func main() {
 	// Route + middleware
 
 	mux.Handle(
-		"POST dashboard/jobs",
+		"/dashboard/jobs",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobFromDashboard),
 		),
 	)
 	mux.Handle(
-		"POST dashboard/jobs/batch",
+		"/dashboard/jobs/batch",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobBatchFromDashboard), // partial
 		),
 	)
 
 	mux.Handle(
-		"POST dashboard/jobs/batch/atomic",
+		"/dashboard/jobs/batch/atomic",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobBatchAtomicFromDashboard), // atomic
 		),
 	)
 
 	mux.Handle(
-		"POST system/jobs",
+		"/system/jobs",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobFromSystem),
 		),
 	)
 
 	mux.Handle(
-		"POST system/jobs/batch",
+		"/system/jobs/batch",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobBatchFromSystem), // partial
 		),
 	)
 
 	mux.Handle(
-		"POST system/jobs/batch/atomic",
+		"/system/jobs/batch/atomic",
 		middleware.ServiceRunningOnly(
 			http.HandlerFunc(handler.CreateJobBatchAtomicFromSystem), // atomic
 		),

@@ -10,11 +10,11 @@ func CreateJobFromDashboard(w http.ResponseWriter, r *http.Request){
 
 
 func CreateJobBatchFromDashboard(w http.ResponseWriter, r *http.Request){
-	CreateJob(w,r,true)
+	CreateJobBatch(w,r,true)
 }
 
 func CreateJobBatchAtomicFromDashboard(w http.ResponseWriter, r *http.Request){
-	CreateJob(w,r,true)
+	CreateJobBatchAtomic(w,r,true)
 }
 
 func CreateJobFromSystem(w http.ResponseWriter, r *http.Request){
@@ -22,9 +22,9 @@ func CreateJobFromSystem(w http.ResponseWriter, r *http.Request){
 }
 
 func CreateJobBatchFromSystem(w http.ResponseWriter, r *http.Request){
-	CreateJob(w,r,false)
+	CreateJobBatch(w,r,false)
 }
 
 func CreateJobBatchAtomicFromSystem(w http.ResponseWriter, r *http.Request){
-	CreateJob(w,r,false)
+	CreateJobBatchAtomic(w,r,false)
 }
