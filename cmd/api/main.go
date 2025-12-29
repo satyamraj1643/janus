@@ -3,11 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/satyamraj1643/janus/db"
 	"github.com/satyamraj1643/janus/handler"
+	"github.com/satyamraj1643/janus/internal/admission"
+	"github.com/satyamraj1643/janus/internal/policy"
+	"github.com/satyamraj1643/janus/internal/store"
 	"github.com/satyamraj1643/janus/middleware"
 	"github.com/satyamraj1643/janus/worker"
 )
@@ -18,12 +22,30 @@ func main() {
 		log.Println("No .env file found, using system env")
 	}
 
+	// Initialise admission controller 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		log.Fatal("REDIS_ADDR not set")
+	}
+
+	redisStore := store.NewRedisStore(redisAddr)
+
+	pol, err := policy.LoadPolicy("config/janus.json")
+
+	if err != nil {
+		log.Fatalf("Failed to load global config: %v", err)
+	}
+	log.Printf("Policy version: %d loaded", pol.Version)
+
+	ac := admission.NewAdmissionController(pol, redisStore)
+
+
 	// Init DB
 
 	db.Init()
 	defer db.Pool.Close()
 
-	worker.StartJanusService(2) // 2 worker threads only for dequeing from the queue. (async with Janus Singleton thread)
+	worker.StartJanusService(2, ac) // 2 worker threads only for dequeing from the queue. (async with Janus Singleton thread)
 	worker.StartDBWriter(2)     // 2 worker thread to save the processed job into DB (async with Janus singleton thread)
 
 	//Router
@@ -85,7 +107,7 @@ func main() {
 
 	log.Println("Starting server...")
 
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 
 	log.Println("Server stopped") // runs only when server exits
 
