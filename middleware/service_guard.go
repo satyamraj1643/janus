@@ -1,9 +1,13 @@
 package middleware
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+
 	db "github.com/satyamraj1643/janus/db"
+	configStore "github.com/satyamraj1643/janus/globalStore"
 )
 
 func ServiceRunningOnly(next http.Handler) http.Handler {
@@ -18,9 +22,9 @@ func ServiceRunningOnly(next http.Handler) http.Handler {
 			return
 		}
 
-		running, err := db.IsServiceRunning(userID)
+		running, errService := db.IsServiceRunning(userID)
 
-		if err != nil {
+		if errService != nil {
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
@@ -29,7 +33,44 @@ func ServiceRunningOnly(next http.Handler) http.Handler {
 			http.Error(w, "Service is paused, please enable it from dashboard, then try running the service..", http.StatusForbidden)
 			return
 		}
-        log.Printf("Forwarding request to respective handler ---")
-		next.ServeHTTP(w,r)
+
+		// 1. Try cache
+		cached, found := configStore.Get(userID)
+
+		var activeConfig json.RawMessage
+		var activeConfigID string
+		activeConfigExists := false
+
+		if found {
+			activeConfig = cached.Config
+			activeConfigID = cached.ID
+			activeConfigExists = true
+		} else {
+			// 2. Fetch from DB
+			var errConfig error
+			activeConfig, activeConfigID, activeConfigExists, errConfig = db.GetActiveJanusConfig(userID)
+			if errConfig != nil {
+				http.Error(w, "Internal error", http.StatusInternalServerError)
+				return
+			}
+
+			// 3. Populate cache if found
+			if activeConfigExists {
+				configStore.Set(userID, activeConfig, activeConfigID)
+			}
+		}
+
+		if !activeConfigExists {
+			http.Error(w, "No active Janus config found, please create one from dashboard", http.StatusForbidden)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), activeConfigKey, activeConfig)
+		ctx = context.WithValue(ctx, activeConfigIDKey, activeConfigID)
+		ctx = context.WithValue(ctx, activeUserIDKey, userID)
+		r = r.WithContext(ctx)
+
+		log.Printf("Forwarding request to respective handler ---")
+		next.ServeHTTP(w, r)
 	})
 }

@@ -4,14 +4,14 @@
     "max_jobs": 20,
     "window_ms": 1000,
     "max_concurrent_per_tenant": 20,
-    "min_priority": 0,
-    "min_interval_ms": 500
+    "min_priority": 1,
+    "min_interval_ms": 0
   },
   "dependencies": {
     "payment_gateway": {
       "type": "external_api",
       "rate_limit": {
-        "max_requests": 5,
+        "max_requests": 15,
         "window_ms": 1000
       },
       "concurrent": {
@@ -23,7 +23,7 @@
     "database": {
       "type": "database",
       "rate_limit": {
-        "max_requests": 1,
+        "max_requests": 15,
         "window_ms": 1000
       },
       "concurrent": {
@@ -40,19 +40,19 @@
     }
   },
   "default_job_policy": {
-    "idempotency_window_ms": 300000,
+    "idempotency_window_ms": 3000,
     "retry": {
       "max_attempts": 3,
       "backoff": "exponential",
       "initial_delay_ms": 1000
     },
     "execution": {
-      "timeout_ms": 15000
+      "timeout_ms": 1500
     },
     "quarantine": {
       "failure_threshold": 5,
-      "quarantine_duration_ms": 60000,
-      "monitoring_window_ms": 300000
+      "quarantine_duration_ms": 6000,
+      "monitoring_window_ms": 3000
     }
   }
 }

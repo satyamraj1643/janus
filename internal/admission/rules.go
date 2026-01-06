@@ -29,27 +29,21 @@ func (ac *AdmissionController) checkIdempotency(ctx context.Context, job spec.Jo
 // check external API dependecies limit to determine of per window rate limits are crossed or not
 
 func (ac *AdmissionController) checkDependecyLimit(ctx context.Context, job spec.Job) error {
-	for depName, cost := range job.Dependencies {
-		// Get the policy
+	// 1. Prepare rate limit parameters using the shared helper
+	reqs := ac.getDependencyParams(job)
 
-		depPolicy, ok := ac.Policy.Dependencies[depName]
-		if !ok || depPolicy.RateLimit == nil {
-			continue // No limit provided skip
-		}
-
-		// Check limit
-
-		limit := depPolicy.RateLimit.MaxRequests
-		window := time.Duration(depPolicy.RateLimit.WindowMs) * time.Millisecond
-
-		allowed, err := ac.Store.AllowRequest(ctx, depName, limit, window, cost)
-
+	// 2. Validate using the atomic token bucket store
+	// This ensures we use the SAME keys and logic as CheckBatchAtomic
+	if len(reqs) > 0 {
+		allowed, err := ac.Store.AllowRequestAtomic(ctx, reqs)
 		if err != nil {
 			return err
 		}
-
 		if !allowed {
-			return fmt.Errorf("dependency '%s' rate limit exceeded (cost %d, limit %d)", depName, cost, limit)
+			// For better error messages, we could check which one failed,
+			// but Atomic check returns a boolean.
+			// Roughly we know it's one of the dependencies.
+			return fmt.Errorf("dependency rate limit exceeded")
 		}
 	}
 

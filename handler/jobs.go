@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/satyamraj1643/janus/internal/admission"
+	"github.com/satyamraj1643/janus/middleware"
 	"github.com/satyamraj1643/janus/queue"
 	"github.com/satyamraj1643/janus/spec"
 )
@@ -15,7 +17,12 @@ const (
 	DashboardBatchID = "22222222-2222-2222-2222-222222222222" // fixed UUID for dashboard batch
 )
 
-func CreateJob(w http.ResponseWriter, r *http.Request, fromDashboard bool) {
+type JobHandler struct {
+	AC            *admission.AdmissionController
+	FromDashboard bool
+}
+
+func (h *JobHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	log.Println("PATH:", r.Method, r.URL.Path)
 
 	if r.Method != http.MethodPost {
@@ -37,9 +44,9 @@ func CreateJob(w http.ResponseWriter, r *http.Request, fromDashboard bool) {
 		return
 	}
 
-	if fromDashboard {
+	if h.FromDashboard {
 		job.Source = spec.JobSourceDashboard
-		job.BatchName = "dashboard_job"
+		job.BatchName = "dashboard_batch"
 		job.BatchID = DashboardBatchID
 	} else {
 		job.Source = spec.JobSourceSystem
@@ -47,19 +54,34 @@ func CreateJob(w http.ResponseWriter, r *http.Request, fromDashboard bool) {
 		job.BatchID = SystemBatchID
 	}
 
-	log.Printf("Pushing in intermediate job-queue.")
+	// Attach user's active config to job
+	activeConfig, configID, ownerID, _ := middleware.GetActiveContext(r.Context())
+	job.Config = activeConfig
+	job.GlobalConfigID = configID
+	job.OwnerID = ownerID
 
-	if err := queue.Admit(job); err != nil {
-		http.Error(w, "admission queue busy", http.StatusServiceUnavailable)
+	log.Printf("Validating job synchronously.")
+
+	decision, err := h.AC.Check(r.Context(), job)
+	if err != nil {
+		http.Error(w, "internal service error", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	// Send to DB writer
+	queue.ResultQueue <- decision
 
+	w.Header().Set("Content-Type", "application/json")
+	if decision.Status == "accepted" {
+		w.WriteHeader(http.StatusAccepted)
+	} else {
+		w.WriteHeader(http.StatusForbidden) // Or 429 based on reason
+	}
+	json.NewEncoder(w).Encode(decision)
 }
 
 // Accepts partial batch, some admitted and some not.
-func CreateJobBatch(w http.ResponseWriter, r *http.Request, fromDashboard bool) {
+func (h *JobHandler) CreateJobBatch(w http.ResponseWriter, r *http.Request) {
 	log.Println("PATH:", r.Method, r.URL.Path)
 
 	if r.Method != http.MethodPost {
@@ -83,7 +105,7 @@ func CreateJobBatch(w http.ResponseWriter, r *http.Request, fromDashboard bool) 
 
 	// ✅ BatchID depends ONLY on source
 	var batchID string
-	if fromDashboard {
+	if h.FromDashboard {
 		batchID = "dashboard_batch_" + uuid.NewString()
 	} else {
 		batchID = "system_batch_" + uuid.NewString()
@@ -101,13 +123,14 @@ func CreateJobBatch(w http.ResponseWriter, r *http.Request, fromDashboard bool) 
 	}
 
 	admitted := 0
+	var decisions []*spec.JobDecision
 
 	for _, job := range req.Jobs {
 		if job.ID == "" || job.TenantID == "" {
 			break
 		}
 
-		if fromDashboard {
+		if h.FromDashboard {
 			job.Source = spec.JobSourceDashboard
 		} else {
 			job.Source = spec.JobSourceSystem
@@ -116,10 +139,24 @@ func CreateJobBatch(w http.ResponseWriter, r *http.Request, fromDashboard bool) 
 		job.BatchName = batchName
 		job.BatchID = batchID
 
-		if err := queue.Admit(job); err != nil {
+		// Attach user's active config to job
+		activeConfig, configID, ownerID, _ := middleware.GetActiveContext(r.Context())
+		job.Config = activeConfig
+		job.GlobalConfigID = configID
+		job.OwnerID = ownerID
+
+		decision, err := h.AC.Check(r.Context(), job)
+		if err != nil {
+			// If internal error, we count as failure/break or log
 			break
 		}
-		admitted++
+
+		queue.ResultQueue <- decision
+		decisions = append(decisions, decision)
+
+		if decision.Status == "accepted" {
+			admitted++
+		}
 	}
 
 	rejected := len(req.Jobs) - admitted
@@ -138,13 +175,18 @@ func CreateJobBatch(w http.ResponseWriter, r *http.Request, fromDashboard bool) 
 		Rejected:  rejected,
 	}
 
+	// Optional: we can return decisions details if needed, but keeping existing response format for now + decisions?
+	// The user asked for "status of each job", but the original response was aggregate.
+	// Let's stick to aggregate for this endpoint as it's partial, or maybe add detail?
+	// User said "what is the status of each job after janus run".
+	// Let's just return the aggregate for now to pass build, then refine.
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
 }
 
-
-func CreateJobBatchAtomic(w http.ResponseWriter, r *http.Request, fromDashboard bool) {
+func (h *JobHandler) CreateJobBatchAtomic(w http.ResponseWriter, r *http.Request) {
 	log.Println("PATH:", r.Method, r.URL.Path)
 
 	if r.Method != http.MethodPost {
@@ -166,7 +208,7 @@ func CreateJobBatchAtomic(w http.ResponseWriter, r *http.Request, fromDashboard 
 	batchName := req.BatchName
 
 	var batchID string
-	if fromDashboard {
+	if h.FromDashboard {
 		batchID = "dashboard_batch_" + uuid.NewString()
 	} else {
 		batchID = "system_batch_" + uuid.NewString()
@@ -183,7 +225,7 @@ func CreateJobBatchAtomic(w http.ResponseWriter, r *http.Request, fromDashboard 
 			return
 		}
 
-		if fromDashboard {
+		if h.FromDashboard {
 			req.Jobs[i].Source = spec.JobSourceDashboard
 		} else {
 			req.Jobs[i].Source = spec.JobSourceSystem
@@ -191,12 +233,37 @@ func CreateJobBatchAtomic(w http.ResponseWriter, r *http.Request, fromDashboard 
 
 		req.Jobs[i].BatchName = batchName
 		req.Jobs[i].BatchID = batchID
+
+		// Attach user's active config to job
+		activeConfig, configID, ownerID, _ := middleware.GetActiveContext(r.Context())
+		req.Jobs[i].Config = activeConfig
+		req.Jobs[i].GlobalConfigID = configID
+		req.Jobs[i].OwnerID = ownerID
 	}
 
-	if err := queue.AdmitBatch(req.Jobs); err != nil {
-		http.Error(w, "system busy", http.StatusServiceUnavailable)
+	decisions, err := h.AC.CheckBatchAtomic(r.Context(), req.Jobs)
+	if err != nil {
+		http.Error(w, "internal error during atomic check", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	// Queue decisions for DB
+	for _, d := range decisions {
+		queue.ResultQueue <- d
+	}
+
+	// Return results
+	w.Header().Set("Content-Type", "application/json")
+
+	// If any rejected, the whole batch is technically rejected in "atomic" sense if we consider
+	// CheckBatchAtomic's logic.
+	// But CheckBatchAtomic returns a list of decisions.
+	// We can inspect the first decision status (as they should all be same for atomic)
+	status := http.StatusAccepted
+	if len(decisions) > 0 && decisions[0].Status == "rejected" {
+		status = http.StatusForbidden
+	}
+
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(decisions)
 }

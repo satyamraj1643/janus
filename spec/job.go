@@ -1,24 +1,30 @@
 package spec
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 //Job represents a single execution request submitted to Janus
 // It carries identity, classification, scope and business payload
 // It does NOT carry execution or scheduling semantics
 
 type Job struct {
-	ID           string                 `json:"job_id"`
-	TenantID     string                 `json:"tenant_id"`
-	Priority     int                    `json:"priority"`
-	Dependencies map[string]int         `json:"dependencies"`
+	ID           string         `json:"job_id"`
+	TenantID     string         `json:"tenant_id"`
+	Priority     int            `json:"priority"`
+	Dependencies map[string]int `json:"dependencies"`
 	Payload      map[string]any `json:"payload"`
 
+    
 
 	// metadata (NOT user-provided)
-
-	Source JobSource `json:"-"`
-	BatchName string `json:"-"`
-	BatchID string `json:"-"`
+	OwnerID      string         `json:"-"` // Janus User ID (authenticated)
+	Source         JobSource       `json:"-"`
+	BatchName      string          `json:"-"`
+	BatchID        string          `json:"-"`
+	Config         json.RawMessage `json:"-"` // user's active Janus config
+	GlobalConfigID string          `json:"-"` // ID of the active config
 }
 
 type JobDecision struct {
@@ -33,12 +39,13 @@ type JobDecision struct {
 	Timestamp time.Time `json:"timestamp"`
 
 	// Full payload
-	Job Job `json:"job"`
+	Job    Job             `json:"job"`
+	Config json.RawMessage `json:"config"`
 }
 
 type JobSource string
 
 const (
 	JobSourceDashboard JobSource = "dashboard"
-	JobSourceSystem JobSource = "system"
+	JobSourceSystem    JobSource = "system"
 )
