@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  janus:
+    build: .
+    container_name: janus-service
+    env_file: .env # Will load DB_URL
+    environment:
+      # Override REDIS_ADDR to point to the service below
+      - REDIS_ADDR=janus-redis:6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      - janus-redis
+    restart: unless-stopped
+
+  janus-redis:
+    image: redis:alpine
+    container_name: janus-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    # Optional: Persist Redis data locally
+    # volumes:
+    #   - ./redis-data:/data
