@@ -1,0 +1,27 @@
+
+name: Go CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      # Running tests with -v (verbose) and -race (race detector)
+      # The race detector is crucial for Janus since we use intricate concurrency (mutexes/goroutines).
+      run: go test -v -race ./...
