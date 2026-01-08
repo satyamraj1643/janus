@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+
 	"github.com/joho/godotenv"
 	"github.com/satyamraj1643/janus/db"
 	"github.com/satyamraj1643/janus/handler"
@@ -56,6 +57,13 @@ func main() {
 
 	//Router
 	mux := http.NewServeMux()
+
+	// Health check endpoint (no auth required)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	// Route + middleware
 
